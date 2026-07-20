@@ -9,7 +9,7 @@ function AuthPage({ mode, onNavigate, onLoginSuccess, onSignupSuccess }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -23,11 +23,55 @@ function AuthPage({ mode, onNavigate, onLoginSuccess, onSignupSuccess }) {
       return;
     }
 
-    const credentials = { email, password };
-    if (isLogin) {
-      onLoginSuccess(credentials);
-    } else {
-      onSignupSuccess(credentials);
+    // Extract username from college email prefix (e.g. s.tarun from s.tarun@college.edu)
+    const username = email.split('@')[0];
+    const credentials = { email, password, username };
+
+    try {
+      if (isLogin) {
+        const formData = new URLSearchParams();
+        formData.append('username', username);
+        formData.append('password', password);
+
+        const response = await fetch('http://127.0.0.1:8000/api/v1/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString()
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.detail || 'Incorrect email or password.');
+        }
+
+        const data = await response.json();
+        localStorage.setItem('token', data.access_token);
+        onLoginSuccess(credentials);
+      } else {
+        const response = await fetch('http://127.0.0.1:8000/api/v1/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: email,
+            username: username,
+            password: password,
+            full_name: username.replace('.', ' ')
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.detail || 'Email or username already registered.');
+        }
+
+        onSignupSuccess(credentials);
+      }
+    } catch (err) {
+      setError(err.message);
     }
   };
 

@@ -342,6 +342,8 @@ function DashboardPreview() {
 }
 
 function LandingPage({ onNavigate, userProfile }) {
+  const [heroVisual, setHeroVisual] = useState('constellation');
+  const [selectedPoster, setSelectedPoster] = useState('original');
   const features = [
     {
       icon: <Brain size={24} style={{ color: '#6366f1' }} />,
@@ -558,11 +560,129 @@ function LandingPage({ onNavigate, userProfile }) {
             </div>
           </div>
 
-          {/* Hero Right Column: Constellation */}
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <Tilt max={10}>
-              <TwinConstellation />
-            </Tilt>
+          {/* Hero Right Column: Interactive Constellation & Poster Switcher */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+            {/* Visual View Toggle */}
+            <div style={{
+              display: 'inline-flex',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              padding: '4px',
+              borderRadius: '10px',
+              backdropFilter: 'blur(10px)',
+              zIndex: 5
+            }}>
+              <button 
+                onClick={() => setHeroVisual('constellation')}
+                style={{
+                  background: heroVisual === 'constellation' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                  border: 'none',
+                  color: heroVisual === 'constellation' ? '#ffffff' : '#8e9bb0',
+                  padding: '6px 14px',
+                  borderRadius: '7px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  transition: 'all 0.2s'
+                }}
+              >
+                Network Constellation
+              </button>
+              <button 
+                onClick={() => setHeroVisual('poster')}
+                style={{
+                  background: heroVisual === 'poster' ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                  border: 'none',
+                  color: heroVisual === 'poster' ? '#ffffff' : '#8e9bb0',
+                  padding: '6px 14px',
+                  borderRadius: '7px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  transition: 'all 0.2s'
+                }}
+              >
+                Launch Campaign Poster
+              </button>
+            </div>
+
+            {heroVisual === 'constellation' ? (
+              <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                <Tilt max={10}>
+                  <TwinConstellation />
+                </Tilt>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '380px' }}>
+                <Tilt max={8}>
+                  <img 
+                    src={
+                      selectedPoster === 'original' 
+                        ? '/original_poster.jpg' 
+                        : selectedPoster === 'obsidian' 
+                          ? '/obsidian_poster.jpg' 
+                          : '/blueprint_poster.jpg'
+                    } 
+                    alt="Launch Campaign Poster" 
+                    style={{
+                      width: '100%',
+                      maxHeight: '400px',
+                      objectFit: 'contain',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
+                    }} 
+                  />
+                </Tilt>
+                {/* Poster Style Switcher */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => setSelectedPoster('original')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: selectedPoster === 'original' ? '#06b6d4' : '#8e9bb0',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textDecoration: selectedPoster === 'original' ? 'underline' : 'none'
+                    }}
+                  >
+                    Original Layout
+                  </button>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.2)', fontSize: '11px' }}>|</span>
+                  <button 
+                    onClick={() => setSelectedPoster('obsidian')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: selectedPoster === 'obsidian' ? '#06b6d4' : '#8e9bb0',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textDecoration: selectedPoster === 'obsidian' ? 'underline' : 'none'
+                    }}
+                  >
+                    Obsidian Layout
+                  </button>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.2)', fontSize: '11px' }}>|</span>
+                  <button 
+                    onClick={() => setSelectedPoster('blueprint')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: selectedPoster === 'blueprint' ? '#06b6d4' : '#8e9bb0',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textDecoration: selectedPoster === 'blueprint' ? 'underline' : 'none'
+                    }}
+                  >
+                    HUD Blueprint
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>

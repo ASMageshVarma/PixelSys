@@ -58,3 +58,9 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
         "refresh_token": create_refresh_token(data={"sub": username}),
         "token_type": "bearer"
     }
+
+from app.core.dependencies import get_current_user
+
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user

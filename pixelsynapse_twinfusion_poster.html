@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PixelSynapse TwinFusion AI Poster Gallery</title>
+  <style>
+    :root {
+      --bg-color: #050508;
+      --card-bg: rgba(255, 255, 255, 0.02);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #ffffff;
+      --text-muted: #8e9bb0;
+      --primary: #6366f1;
+      --accent: #06b6d4;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      padding: 40px 20px;
+      position: relative;
+    }
+
+    /* Ambient Background Effects */
+    .ambient-glow {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(6, 182, 212, 0.05) 50%, transparent 100%);
+      filter: blur(80px);
+      z-index: 0;
+      pointer-events: none;
+    }
+    .glow-left { top: -100px; left: -100px; }
+    .glow-right { bottom: -100px; right: -100px; }
+
+    /* Main Container */
+    .container {
+      max-width: 1100px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+      z-index: 1;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 36px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+      max-width: 600px;
+      line-height: 1.5;
+    }
+
+    /* Tabs Selector */
+    .tab-selector {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      padding: 6px;
+      border-radius: 14px;
+      margin-bottom: 8px;
+      backdrop-filter: blur(10px);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 24px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .tab-btn.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Showcase Frame */
+    .showcase-frame {
+      display: flex;
+      flex-direction: row;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      overflow: hidden;
+      width: 100%;
+      max-height: 700px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+
+    .poster-view {
+      flex: 1.2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.3);
+      padding: 30px;
+      position: relative;
+    }
+
+    .poster-img {
+      max-width: 100%;
+      max-height: 600px;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    /* Details Panel */
+    .details-panel {
+      flex: 1;
+      padding: 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-left: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    .tag {
+      display: inline-block;
+      align-self: flex-start;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      color: #818cf8;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .poster-title {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .poster-desc {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    /* Actions */
+    .actions {
+      display: flex;
+      gap: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--text-main);
+      color: var(--bg-color);
+      border: none;
+    }
+
+    .btn-primary:hover {
+      background: rgba(255, 255, 255, 0.9);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .showcase-frame {
+        flex-direction: column;
+        max-height: none;
+      }
+      .details-panel {
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        padding: 32px;
+      }
+      .poster-view {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow glow-left"></div>
+  <div class="ambient-glow glow-right"></div>
+
+  <div class="container">
+    <header>
+      <h1>Branding & Launch Artifacts</h1>
+      <p class="subtitle">Personalized tech-oriented event poster layouts for the TwinFusion AI college freshers launch campaign.</p>
+    </header>
+
+    <div class="tab-selector">
+      <button class="tab-btn active" onclick="switchPoster('original')">Original Custom Poster</button>
+      <button class="tab-btn" onclick="switchPoster('obsidian')">Obsidian Black Tech</button>
+      <button class="tab-btn" onclick="switchPoster('blueprint')">HUD Blueprint</button>
+    </div>
+
+    <div class="showcase-frame">
+      <div class="poster-view">
+        <img id="poster-display" src="./original_poster.jpg" alt="Original Custom Poster" class="poster-img">
+      </div>
+      
+      <div class="details-panel">
+        <span id="poster-tag" class="tag">Original Theme</span>
+        <h2 id="poster-name" class="poster-title">Original Custom Poster</h2>
+        <p id="poster-description" class="poster-desc">
+          Your custom-designed cyberpunk tech portal launch poster featuring students walking through a neon portal, holographic telemetry windows, and the active development tech stack.
+        </p>
+        <div class="actions">
+          <a id="download-link" href="./original_poster.jpg" download="pixelsynapse_original_poster.jpg" class="btn btn-primary">Download Image</a>
+          <button onclick="openFullscreen()" class="btn btn-secondary">Open Fullscreen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const posters = {
+      original: {
+        src: './original_poster.jpg',
+        title: 'Original Custom Poster',
+        tag: 'Original Theme',
+        description: 'Your custom-designed cyberpunk tech portal launch poster featuring students walking through a neon portal, holographic telemetry windows, and the active development tech stack.'
+      },
+      obsidian: {
+        src: './obsidian_poster.jpg',
+        title: 'Obsidian Minimalist Layout',
+        tag: 'Premium Tech Theme',
+        description: 'A high-contrast monochrome design utilizing clean glassmorphism layouts and a central wireframe digital twin avatar. Stripped of high-saturation party glows to align with a professional Google student-ambassador hackathon aesthetic.'
+      },
+      blueprint: {
+        src: './blueprint_poster.jpg',
+        title: 'Holographic HUD Blueprint',
+        tag: 'Technical Schema Theme',
+        description: 'A detailed blueprint diagram styling built on top of dark grid lines. Embeds floating telemetry panels, code snips, and active data flows mapping the twin backend telemetry, designed to show architectural depth.'
+      }
+    };
+
+    let currentKey = 'original';
+
+    function switchPoster(key) {
+      currentKey = key;
+      const img = document.getElementById('poster-display');
+      const title = document.getElementById('poster-name');
+      const tag = document.getElementById('poster-tag');
+      const desc = document.getElementById('poster-description');
+      const dlLink = document.getElementById('download-link');
+
+      // Fade out
+      img.style.opacity = 0;
+      img.style.transform = 'scale(0.98)';
+
+      setTimeout(() => {
+        // Change contents
+        img.src = posters[key].src;
+        img.alt = posters[key].title;
+        title.textContent = posters[key].title;
+        tag.textContent = posters[key].tag;
+        desc.textContent = posters[key].description;
+        dlLink.href = posters[key].src;
+        dlLink.download = `pixelsynapse_${key}_poster.jpg`;
+
+        // Update active tab button style
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+
+        // Fade in
+        img.style.opacity = 1;
+        img.style.transform = 'scale(1)';
+      }, 200);
+    }
+
+    function openFullscreen() {
+      const img = document.getElementById('poster-display');
+      if (img.requestFullscreen) {
+        img.requestFullscreen();
+      } else if (img.webkitRequestFullscreen) { /* Safari */
+        img.webkitRequestFullscreen();
+      } else if (img.msRequestFullscreen) { /* IE11 */
+        img.msRequestFullscreen();
+      }
+    }
+  </script>
+</body>
+</html>
