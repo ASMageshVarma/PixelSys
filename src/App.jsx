@@ -3,6 +3,7 @@ import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
 import OnboardingPage from './components/OnboardingPage';
 import Dashboard from './components/Dashboard';
+import { saveProfile, fetchProfile } from './services/api';
 
 /* ---------------------------------------------------------------- */
 /* AMBIENT 3D BACKGROUND: depth field + perspective grid + glow mesh  */
@@ -136,13 +137,19 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleLoginSuccess = (credentials) => {
+  const handleLoginSuccess = async (credentials) => {
     setUserCredentials(credentials);
-    if (userProfile) {
-      handleNavigate('dashboard');
-    } else {
-      handleNavigate('onboarding');
+    try {
+      const p = await fetchProfile();
+      if (p && p.name) {
+        setUserProfile(p);
+        handleNavigate('dashboard');
+        return;
+      }
+    } catch {
+      // no saved profile yet
     }
+    handleNavigate('onboarding');
   };
 
   const handleSignupSuccess = (credentials) => {
@@ -150,12 +157,19 @@ function App() {
     handleNavigate('onboarding');
   };
 
-  const handleOnboardingComplete = (profile) => {
+  const handleOnboardingComplete = async (profile) => {
     setUserProfile(profile);
+    try {
+      await saveProfile(profile);
+    } catch (err) {
+      console.warn("Could not sync profile to backend immediately:", err);
+    }
     handleNavigate('dashboard');
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     setUserCredentials(null);
     setUserProfile(null);
     handleNavigate('landing');

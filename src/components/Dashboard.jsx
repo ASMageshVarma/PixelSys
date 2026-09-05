@@ -15,14 +15,44 @@ import {
   Clock,
   BookOpen,
   MapPin,
-  Sparkles
+  Sparkles,
+  UserCheck,
+  CheckCircle2,
+  Copy,
+  Download
 } from 'lucide-react';
+import { 
+  twinChat, 
+  fetchChatHistory, 
+  fetchOpportunities, 
+  fetchStudyTwins, 
+  fetchTwinAnalytics 
+} from '../services/api';
 
 function Dashboard({ profile, onLogout, onNavigate }) {
-  const [activeTab, setActiveTab] = useState('hub'); // 'hub', 'planner', 'navigator'
+  const [activeTab, setActiveTab] = useState('hub'); // 'hub', 'planner', 'twins', 'analytics', 'navigator'
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [quickChips, setQuickChips] = useState([
+    "What clubs fit my skills?",
+    "Are there any hackathons for me?",
+    "Show me study planner recommendations",
+    "Where is the Innovation Lab located?"
+  ]);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
+  const [opportunities, setOpportunities] = useState([]);
+  const [peers, setPeers] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [activeAlerts, setActiveAlerts] = useState([
+    { id: 1, text: "Python Assignment #2 due in 3 hours", urgent: true },
+    { id: 2, text: "Google GenAI Hackathon registration closing soon", urgent: false },
+    { id: 3, text: "GDSC Club meetup in Academic Block 304 tomorrow", urgent: false }
+  ]);
+  const [copiedIndex, setCopiedIndex] = useState(null);
+  const [joinedOpps, setJoinedOpps] = useState({});
+  const [connectedPeers, setConnectedPeers] = useState({});
+  const messagesEndRef = React.useRef(null);
 
   // Default demo profile in case page is accessed directly or before state loads
   const userProfile = profile || {
@@ -37,72 +67,178 @@ function Dashboard({ profile, onLogout, onNavigate }) {
     helpPreferences: ["Find clubs", "Recommend events", "Plan my timetable", "Find hackathons"]
   };
 
-  // Initialize twin chat with greeting
+  // Load initial backend data
   useEffect(() => {
-    const greeting = `Hey ${userProfile.name}! 👋 I'm your AI Digital Twin. I've finished calibrating with your profile:
+    const loadInitialData = async () => {
+      try {
+        const [history, opps, studyTwins, stats] = await Promise.allSettled([
+          fetchChatHistory(),
+          fetchOpportunities(),
+          fetchStudyTwins(),
+          fetchTwinAnalytics()
+        ]);
+
+        if (history.status === 'fulfilled' && history.value && history.value.length > 0) {
+          setChatMessages(history.value.map(m => ({
+            sender: m.sender,
+            text: m.text,
+            timestamp: m.timestamp ? new Date(m.timestamp) : new Date()
+          })));
+        } else {
+          const greeting = `Hey ${userProfile.name}! 👋 I'm your AI Digital Twin. I've finished calibrating with your profile:
 - 🎓 **Dept**: ${userProfile.department} (${userProfile.year})
 - 🎯 **Career Target**: ${userProfile.careerGoal}
-- 💡 **Key Interests**: ${userProfile.interests.join(', ')}
+- 💡 **Key Interests**: ${(userProfile.interests || []).join(', ')}
 
 How can I guide you today? You can ask me about:
 1. "Which clubs fit my skills?"
 2. "Are there any hackathons or events for me?"
 3. "Show me my study planner recommendations."
 4. "Where is the Google Innovation Lab located?"`;
+          setChatMessages([{ sender: 'twin', text: greeting, timestamp: new Date() }]);
+        }
 
-    setChatMessages([
-      { sender: 'twin', text: greeting, timestamp: new Date() }
-    ]);
+        if (opps.status === 'fulfilled' && opps.value) setOpportunities(opps.value);
+        if (studyTwins.status === 'fulfilled' && studyTwins.value) setPeers(studyTwins.value);
+        if (stats.status === 'fulfilled' && stats.value) setAnalytics(stats.value);
+      } catch (err) {
+        console.warn("Using offline fallback:", err);
+      }
+    };
+    loadInitialData();
   }, [profile]);
 
-  // AI Chatbot simulation matching rules
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+  // AI Chatbot with SSE Streaming & Gemini Fallback
+  const handleSendMessage = async (inputVal) => {
+    const userText = (typeof inputVal === 'string' ? inputVal : chatInput).trim();
+    if (!userText) return;
 
-    const userText = chatInput.trim();
     const newMsgList = [...chatMessages, { sender: 'user', text: userText, timestamp: new Date() }];
     setChatMessages(newMsgList);
     setChatInput('');
+    setIsTyping(true);
 
-    // Simulate thinking delay
-    setTimeout(() => {
-      let replyText = "";
-      const lowerText = userText.toLowerCase();
+    try {
+      const token = localStorage.getItem('token');
+      const streamUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '5173'
+        ? 'http://127.0.0.1:8000/api/v1/twin/chat/stream'
+        : '/api/v1/twin/chat/stream';
+      const response = await fetch(streamUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          message: userText,
+          profile: userProfile,
+          history: newMsgList.slice(-6).map(m => ({ sender: m.sender, text: m.text }))
+        })
+      });
 
-      if (lowerText.includes('club')) {
-        replyText = `Based on your interest in **${userProfile.interests[0] || 'engineering'}** and career target as **${userProfile.careerGoal}**, I highly recommend focusing on these campus groups:
-- 👥 **${userProfile.clubs.includes('AI Club') ? 'AI Club' : 'Coding Club'}**: They are hosting a workshop next week. Fits your schedule!
-- 👥 **Entrepreneurship Club**: Great for building side projects into potential startups.
-Would you like me to add their meeting slots to your calendar?`;
-      } 
-      else if (lowerText.includes('hackathon') || lowerText.includes('event')) {
-        replyText = `Opportunity Radar is picking up two high-match events for you:
-1. 🏆 **Google GenAI Hackathon** (Starts in 2 weeks): Perfect for your skills in *${userProfile.skills.join(', ') || 'Python'}*. 
-2. 💻 **Freshers Web Bootcamp** (Friday at 3 PM): A great way to match with senior mentors.
-I can set a proactive alert for registrations if you like!`;
-      } 
-      else if (lowerText.includes('timetable') || lowerText.includes('planner') || lowerText.includes('schedule') || lowerText.includes('study')) {
-        replyText = `Here is my calendar recommendation for **${userProfile.name}**:
-- 📅 **Friday 2:00 PM**: AI project study slot (calibrated before your next lab).
-- 📅 **Wednesday 4:00 PM**: Club activity session.
-I've also flagged the **Python Lab Assignment** deadline due tomorrow at midnight. Let's aim to start it today!`;
-      } 
-      else if (lowerText.includes('lab') || lowerText.includes('room') || lowerText.includes('where') || lowerText.includes('map') || lowerText.includes('building')) {
-        replyText = `I can help with campus navigation! 
-- The 🌟 **Google Innovation Lab** is located on the **3rd floor of the Main Academic Block (Room 304)**.
-- The **Central Library** is in Building B, open till 8 PM.
-You can click on the **Campus Navigator** tab at the top right of your dashboard to view the interactive campus floor map!`;
-      } 
-      else if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('hey')) {
-        replyText = `Hey ${userProfile.name}! Twin online and fully synced. Ask me about clubs, upcoming hackathons, campus directions, or your planner slots!`;
-      } 
-      else {
-        replyText = `I'm processing that request! As your AI Senior, I suggest looking into your custom **Opportunity Radar** items or checking the **Smart Planner** calendar grid to stay ahead of deadlines. Let me know if you want me to outline specific steps for your goal: **${userProfile.careerGoal}**!`;
+      if (!response.ok || !response.body) throw new Error("Stream failed");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let partialText = "";
+
+      setChatMessages(prev => [...prev, { sender: 'twin', text: "", timestamp: new Date() }]);
+      setIsTyping(false);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const raw = decoder.decode(value, { stream: true });
+        const lines = raw.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.replace("data: ", "").trim();
+            if (dataStr === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.chunk) {
+                partialText += parsed.chunk;
+                setChatMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    ...updated[updated.length - 1],
+                    text: partialText
+                  };
+                  return updated;
+                });
+              }
+            } catch {
+              // ignore json parse error on non-json chunks
+            }
+          }
+        }
       }
+    } catch {
+      try {
+        const res = await twinChat(userText, userProfile, newMsgList.slice(-6).map(m => ({ sender: m.sender, text: m.text })));
+        setChatMessages(prev => [...prev, { sender: 'twin', text: res.reply, timestamp: new Date() }]);
+        if (res.quick_replies && res.quick_replies.length > 0) setQuickChips(res.quick_replies);
+      } catch {
+        setTimeout(() => {
+          let replyText = "";
+          const lower = userText.toLowerCase();
+          if (lower.includes('club')) {
+            replyText = `Based on your interest in **${userProfile.interests[0] || 'AI'}** and career target as **${userProfile.careerGoal}**, I highly recommend the **Google Developer Student Club** and **AI Innovation Club**!`;
+          } else if (lower.includes('hackathon')) {
+            replyText = `Opportunity Radar detected:\n- 🏆 **Google GenAI Hackathon 2026** (Closes in 4 days)\n- 💻 **Smart India Hackathon College Round**`;
+          } else if (lower.includes('timetable') || lower.includes('schedule')) {
+            replyText = `Here is your schedule calibration for **${userProfile.name}**:\n- 📅 Morning: Core theory & lab sessions\n- 💡 1:30 PM - 3:00 PM: Open collaboration gap!\n- 📚 Evening: Self-study and project assignment wrap-up.`;
+          } else {
+            replyText = `Understood, ${userProfile.name}! I've calibrated this with your profile. Check the **Study Twins** tab to find study partners for your target: **${userProfile.careerGoal}**!`;
+          }
+          setChatMessages(prev => [...prev, { sender: 'twin', text: replyText, timestamp: new Date() }]);
+        }, 600);
+      } finally {
+        setIsTyping(false);
+      }
+    }
+  };
 
-      setChatMessages(prev => [...prev, { sender: 'twin', text: replyText, timestamp: new Date() }]);
-    }, 800);
+  const handleCopy = (text, idx) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(idx);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const handleExportPDF = () => {
+    const reportWindow = window.open('', '_blank');
+    const contentHtml = `
+      <html>
+        <head>
+          <title>TwinFusion AI - Student Opportunity Dossier</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #111; line-height: 1.6; }
+            h1 { color: #4338ca; border-bottom: 2px solid #e0e7ff; padding-bottom: 8px; }
+            .badge { display: inline-block; padding: 4px 8px; background: #e0e7ff; color: #3730a3; border-radius: 4px; font-size: 11px; margin-right: 6px; }
+            .section { margin-top: 20px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; }
+          </style>
+        </head>
+        <body>
+          <h1>🚀 TwinFusion AI &middot; Digital Twin Dossier</h1>
+          <p><strong>Student Name:</strong> ${userProfile.name}</p>
+          <p><strong>Department:</strong> ${userProfile.department} (${userProfile.year}) &middot; <strong>Section:</strong> ${userProfile.section}</p>
+          <p><strong>Target Goal:</strong> ${userProfile.careerGoal}</p>
+          <div class="section">
+            <h3>Key Skills & Interests</h3>
+            <p>${(userProfile.interests || []).map(i => `<span class="badge">${i}</span>`).join('')}</p>
+            <p>${(userProfile.skills || []).map(s => `<span class="badge">${s}</span>`).join('')}</p>
+          </div>
+          <div class="section">
+            <h3>Recent Digital Twin Recommendations</h3>
+            ${chatMessages.filter(m => m.sender === 'twin').slice(-4).map(m => `<p>${m.text.replace(/\n/g, '<br/>')}</p>`).join('')}
+          </div>
+          <p style="margin-top: 30px; font-size: 11px; color: #6b7280;">Generated automatically by TwinFusion AI Portal &middot; ${new Date().toLocaleDateString()}</p>
+          <script>window.onload = function() { window.print(); };</script>
+        </body>
+      </html>
+    `;
+    reportWindow.document.write(contentHtml);
+    reportWindow.document.close();
   };
 
   // Mock Campus Buildings Data
@@ -218,15 +354,15 @@ You can click on the **Campus Navigator** tab at the top right of your dashboard
             <Calendar size={16} /> Smart Planner
           </button>
           <button 
-            onClick={() => setActiveTab('navigator')}
+            onClick={() => setActiveTab('twins')}
             style={{
-              background: activeTab === 'navigator' ? 'rgba(99, 102, 241, 0.12)' : 'none',
-              border: activeTab === 'navigator' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
-              color: activeTab === 'navigator' ? '#ffffff' : 'var(--text-muted)',
-              padding: '8px 16px',
+              background: activeTab === 'twins' ? 'rgba(99, 102, 241, 0.15)' : 'none',
+              border: activeTab === 'twins' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
+              color: activeTab === 'twins' ? '#ffffff' : 'var(--text-muted)',
+              padding: '8px 14px',
               borderRadius: '8px',
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '13.5px',
               fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
@@ -234,15 +370,73 @@ You can click on the **Campus Navigator** tab at the top right of your dashboard
               transition: 'all 0.2s'
             }}
           >
-            <Map size={16} /> Campus Navigator
+            <Users size={15} /> Study Twins
+          </button>
+          <button 
+            onClick={() => setActiveTab('analytics')}
+            style={{
+              background: activeTab === 'analytics' ? 'rgba(99, 102, 241, 0.15)' : 'none',
+              border: activeTab === 'analytics' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
+              color: activeTab === 'analytics' ? '#ffffff' : 'var(--text-muted)',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <TrendingUp size={15} /> Analytics
+          </button>
+          <button 
+            onClick={() => setActiveTab('navigator')}
+            style={{
+              background: activeTab === 'navigator' ? 'rgba(99, 102, 241, 0.15)' : 'none',
+              border: activeTab === 'navigator' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
+              color: activeTab === 'navigator' ? '#ffffff' : 'var(--text-muted)',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Map size={15} /> Campus Navigator
           </button>
         </div>
 
         {/* User profile dropdown & logout */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <button
+            onClick={handleExportPDF}
+            style={{
+              background: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              color: '#818cf8',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="Download Twin Dossier PDF"
+          >
+            <Download size={14} /> Export Dossier
+          </button>
+
           <div style={{ textAlign: 'right' }}>
-            <h5 style={{ fontSize: '14px', margin: 0 }}>{userProfile.name}</h5>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>{userProfile.department.split(' ')[0]} Section {userProfile.section}</p>
+            <h5 style={{ fontSize: '13.5px', margin: 0 }}>{userProfile.name}</h5>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>{userProfile.department?.split(' ')[0]} Section {userProfile.section}</p>
           </div>
           <button 
             onClick={onLogout} 
@@ -363,23 +557,100 @@ You can click on the **Campus Navigator** tab at the top right of your dashboard
                     fontSize: '13.5px',
                     textAlign: 'left'
                   }}>
-                    {isTwin ? renderMessageText(msg.text) : <p>{msg.text}</p>}
-                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '6px', textAlign: 'right' }}>
-                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                    {isTwin ? renderMessageText(msg.text) : <p style={{ margin: 0 }}>{msg.text}</p>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                      {isTwin && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(msg.text, i)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: copiedIndex === i ? '#10b981' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: 0
+                          }}
+                        >
+                          <Copy size={11} /> {copiedIndex === i ? "Copied!" : "Copy"}
+                        </button>
+                      )}
+                      <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                        {msg.timestamp?.toLocaleTimeString ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
             })}
+
+            {isTyping && (
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--accent)',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <Sparkles size={13} /> Generating Twin advice...
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Quick-reply chip suggestions */}
+          <div style={{
+            padding: '8px 12px',
+            background: 'rgba(0,0,0,0.2)',
+            display: 'flex',
+            gap: '6px',
+            overflowX: 'auto',
+            borderTop: '1px solid rgba(255,255,255,0.04)'
+          }}>
+            {quickChips.map((chip, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSendMessage(chip)}
+                style={{
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)',
+                  color: '#c7d2fe',
+                  borderRadius: '999px',
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {chip}
+              </button>
+            ))}
           </div>
 
           {/* Chat Form Input */}
-          <form onSubmit={handleSendMessage} style={{
-            padding: '16px',
-            borderTop: '1px solid var(--border-color)',
-            display: 'flex',
-            gap: '10px'
-          }}>
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage(chatInput);
+            }} 
+            style={{
+              padding: '14px 16px',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              gap: '10px'
+            }}
+          >
             <input 
               type="text" 
               placeholder="Ask your AI Senior a question..."
@@ -529,48 +800,60 @@ You can click on the **Campus Navigator** tab at the top right of your dashboard
           {/* TAB 2: Smart Planner */}
           {activeTab === 'planner' && (
             <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px', textAlign: 'left' }}>
-              <div>
-                <h2 style={{ fontSize: '22px', marginBottom: '4px' }}>Calibrated Campus Planner</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Your AI Twin dynamically manages your daily schedule and coursework timeline.</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ fontSize: '22px', marginBottom: '4px' }}>Calibrated Campus Planner</h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Your AI Twin dynamically manages your daily schedule and coursework timeline.</p>
+                </div>
+                <button
+                  onClick={() => onNavigate('onboarding')}
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#c7d2fe',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Edit Timetable
+                </button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', alignItems: 'start' }}>
                 
-                {/* Visual Timetable Grid */}
+                {/* Visual Timetable Grid from Profile */}
                 <div style={{ padding: '20px' }} className="glass">
                   <h4 style={{ fontSize: '16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Clock size={16} color="var(--primary)" /> Timetable (Today)
+                    <Clock size={16} color="var(--primary)" /> Configured Schedule Slots
                   </h4>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '12px', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>09:00 AM</span>
-                      <div>
-                        <h5 style={{ fontSize: '13.5px', margin: 0 }}>Applied Mathematics II</h5>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>Block A, Lecture Room 102</p>
+                    {((userProfile.timetable && userProfile.timetable.length > 0) ? userProfile.timetable : [
+                      { time: "09:00 AM - 10:30 AM", subject: "Applied Mathematics II", room: "Block A, Room 102" },
+                      { time: "11:00 AM - 01:00 PM", subject: "Python Programming & AI Lab", room: "Main Academic Block, Room 101" },
+                      { time: "01:00 PM - 02:00 PM", subject: "Lunch Break & Peer Discussion", room: "Student Cafeteria Hub" },
+                      { time: "02:00 PM - 03:30 PM", subject: "Data Structures & Algorithms", room: "Block B, Room 204" },
+                      { time: "03:45 PM - 05:00 PM", subject: "Open Collaborative Study / Clubs", room: "Google Innovation Lab 304" }
+                    ]).map((slot, idx) => (
+                      <div key={idx} style={{
+                        display: 'grid',
+                        gridTemplateColumns: '130px 1fr',
+                        gap: '12px',
+                        alignItems: 'center',
+                        padding: '12px',
+                        background: slot.subject.toLowerCase().includes('lab') ? 'rgba(99,102,241,0.06)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${slot.subject.toLowerCase().includes('lab') ? 'rgba(99,102,241,0.18)' : 'var(--border-color)'}`,
+                        borderRadius: '10px'
+                      }}>
+                        <span style={{ fontSize: '11.5px', color: 'var(--accent)', fontWeight: 600 }}>{slot.time}</span>
+                        <div>
+                          <h5 style={{ fontSize: '13.5px', margin: 0 }}>{slot.subject}</h5>
+                          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>{slot.room}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '12px', alignItems: 'center', padding: '12px', background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '10px' }}>
-                      <span style={{ fontSize: '12px', color: '#818cf8', fontWeight: 600 }}>11:30 AM</span>
-                      <div>
-                        <h5 style={{ fontSize: '13.5px', margin: 0, color: '#818cf8' }}>Python Programming Lab</h5>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>Main Academic Block, Room 101</p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '12px', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>01:30 PM</span>
-                      <div>
-                        <h5 style={{ fontSize: '13.5px', margin: 0 }}>LUNCH BREAK</h5>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>Student Cafeteria Hub</p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '12px', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: '10px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>03:00 PM</span>
-                      <div>
-                        <h5 style={{ fontSize: '13.5px', margin: 0 }}>Professional Communication</h5>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>Block A, Lecture Room 204</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
@@ -594,13 +877,173 @@ You can click on the **Campus Navigator** tab at the top right of your dashboard
                         <Sparkles size={16} color="#818cf8" style={{ flexShrink: 0, marginTop: '2px' }} />
                         <div>
                           <h5 style={{ fontSize: '13px', margin: 0, color: '#818cf8' }}>Timetable Optimization Complete</h5>
-                          <p style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.7)', margin: 0 }}>Blocked 4 PM to 5 PM today for self study to cover Python assignment.</p>
+                          <p style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.7)', margin: 0 }}>Detected 1-hour free gap at 1:00 PM for project collaboration.</p>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 3: Study Twins / Peer Matching */}
+          {activeTab === 'twins' && (
+            <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }}>
+              <div>
+                <h2 style={{ fontSize: '22px', marginBottom: '4px' }}>Peer Matching: Find Your Study Twin</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>
+                  Algorithmic compatibility matching students by shared interests, skills, and goals.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                {(peers.length > 0 ? peers : [
+                  {
+                    id: 101,
+                    name: "Priya Sharma",
+                    department: "Computer Science and Engineering",
+                    year: "1st Year",
+                    careerGoal: "AI/ML Engineer",
+                    sharedInterests: ["Artificial Intelligence", "Data Science"],
+                    sharedSkills: ["Python"],
+                    matchScore: 94
+                  },
+                  {
+                    id: 102,
+                    name: "Karthik Raja",
+                    department: "Information Technology",
+                    year: "2nd Year",
+                    careerGoal: "Software Engineer",
+                    sharedInterests: ["Web Development", "Cloud Computing"],
+                    sharedSkills: ["Web Development"],
+                    matchScore: 88
+                  },
+                  {
+                    id: 103,
+                    name: "Sneha Verma",
+                    department: "Artificial Intelligence and Data Science",
+                    year: "1st Year",
+                    careerGoal: "Data Scientist",
+                    sharedInterests: ["Artificial Intelligence", "Entrepreneurship"],
+                    sharedSkills: ["Python", "UI/UX Design"],
+                    matchScore: 82
+                  }
+                ]).map((peer) => (
+                  <div key={peer.id} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }} className="glass">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', color: '#ffffff' }}>
+                          {peer.name.charAt(0)}
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '14.5px', margin: 0 }}>{peer.name}</h4>
+                          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>{peer.year} &middot; {peer.department?.split(' ')[0]}</p>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16,185,129,0.2)', padding: '2px 8px', borderRadius: '999px' }}>
+                        {peer.matchScore}%
+                      </span>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Target Goal</span>
+                      <p style={{ fontSize: '12.5px', color: 'var(--accent)', margin: 0, fontWeight: 600 }}>{peer.careerGoal}</p>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Shared Skills & Interests</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                        {(peer.sharedInterests || []).concat(peer.sharedSkills || []).slice(0, 3).map((item, idx) => (
+                          <span key={idx} style={{ fontSize: '10px', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: '4px', color: '#ffffff' }}>
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setConnectedPeers(prev => ({ ...prev, [peer.id]: true }));
+                        alert(`Connected with ${peer.name}! Your Digital Twin linked study notes and shared hackathon calendars.`);
+                      }}
+                      style={{
+                        marginTop: 'auto',
+                        background: connectedPeers[peer.id] ? '#10b981' : 'rgba(99, 102, 241, 0.15)',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        color: connectedPeers[peer.id] ? '#ffffff' : '#c7d2fe',
+                        padding: '8px',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      {connectedPeers[peer.id] ? <><CheckCircle2 size={13} /> Linked</> : <><UserCheck size={13} /> Link Study Twin</>}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: Analytics Dashboard */}
+          {activeTab === 'analytics' && (
+            <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }}>
+              <div>
+                <h2 style={{ fontSize: '22px', marginBottom: '4px' }}>Twin Analytics & Growth Engine</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>
+                  Quantified metrics of your academic telemetry and campus readiness.
+                </p>
+              </div>
+
+              {/* Top KPI Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+                <div style={{ padding: '18px', textAlign: 'center' }} className="glass">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sync Calibration</span>
+                  <h3 style={{ fontSize: '26px', margin: '6px 0 0', color: '#06b6d4' }}>{analytics?.syncScore || 95}%</h3>
+                </div>
+                <div style={{ padding: '18px', textAlign: 'center' }} className="glass">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Interactions</span>
+                  <h3 style={{ fontSize: '26px', margin: '6px 0 0', color: '#818cf8' }}>{analytics?.totalInteractions || 28}</h3>
+                </div>
+                <div style={{ padding: '18px', textAlign: 'center' }} className="glass">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Opportunities</span>
+                  <h3 style={{ fontSize: '26px', margin: '6px 0 0', color: '#10b981' }}>{analytics?.opportunitiesMatched || 8}</h3>
+                </div>
+                <div style={{ padding: '18px', textAlign: 'center' }} className="glass">
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Weekly Focus Gap</span>
+                  <h3 style={{ fontSize: '26px', margin: '6px 0 0', color: '#f59e0b' }}>{analytics?.weeklyFocusHours || 14.5}h</h3>
+                </div>
+              </div>
+
+              {/* Skills distribution */}
+              <div style={{ padding: '24px' }} className="glass">
+                <h4 style={{ fontSize: '16px', marginBottom: '16px' }}>Student Competency Distribution</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {(analytics?.skillDistribution || [
+                    { name: "AI & Machine Learning", score: 88 },
+                    { name: "Python Development", score: 92 },
+                    { name: "Web & Cloud Architecture", score: 76 },
+                    { name: "Campus Club Engagement", score: 85 }
+                  ]).map((skill, idx) => (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                        <span>{skill.name}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{skill.score}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${skill.score}%`, height: '100%', background: 'linear-gradient(90deg, #6366f1, #06b6d4)', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
             </div>

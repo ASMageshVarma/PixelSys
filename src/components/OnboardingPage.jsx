@@ -9,7 +9,8 @@ import {
   Users, 
   Wrench, 
   HelpCircle,
-  Cpu
+  Cpu,
+  Calendar
 } from 'lucide-react';
 
 function OnboardingPage({ onComplete, onNavigate }) {
@@ -26,6 +27,13 @@ function OnboardingPage({ onComplete, onNavigate }) {
   const [selectedClubs, setSelectedClubs] = useState([]);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [selectedHelp, setSelectedHelp] = useState([]);
+  const [timetableSlots, setTimetableSlots] = useState([
+    { time: "09:00 AM - 10:30 AM", subject: "Applied Mathematics II", room: "Block A - Room 102" },
+    { time: "11:00 AM - 01:00 PM", subject: "Python Programming & AI Lab", room: "Academic Block - Lab 101" },
+    { time: "01:00 PM - 02:00 PM", subject: "Lunch Break & Peer Discussion", room: "Cafeteria Hub" },
+    { time: "02:00 PM - 03:30 PM", subject: "Data Structures & Algorithms", room: "Block B - Room 204" },
+    { time: "03:45 PM - 05:00 PM", subject: "Open Collaborative Study / Clubs", room: "Innovation Lab 304" },
+  ]);
 
   // Option lists
   const departments = [
@@ -131,7 +139,7 @@ function OnboardingPage({ onComplete, onNavigate }) {
       return;
     }
 
-    if (step < 5) {
+    if (step < 6) {
       setStep(step + 1);
     } else {
       // Completed onboarding
@@ -144,7 +152,8 @@ function OnboardingPage({ onComplete, onNavigate }) {
         careerGoal: selectedCareer,
         clubs: selectedClubs,
         skills: selectedSkills,
-        helpPreferences: selectedHelp
+        helpPreferences: selectedHelp,
+        timetable: timetableSlots
       };
       onComplete(profile);
     }
@@ -165,7 +174,8 @@ function OnboardingPage({ onComplete, onNavigate }) {
       case 2: return { status: "Syncing Interests...", detail: `Mapping ${selectedInterests.length} interest nodes` };
       case 3: return { status: "Plotting Career Trajectory...", detail: selectedCareer ? `Target: ${selectedCareer}` : "Evaluating goals" };
       case 4: return { status: "Linking Clubs & Skills...", detail: `${selectedClubs.length} Clubs | ${selectedSkills.length} Skills` };
-      case 5: return { status: "Finalizing Synchronization...", detail: "Merging parameters into AI Digital Twin" };
+      case 5: return { status: "AI Companion Preferences...", detail: "Setting proactive intelligence filters" };
+      case 6: return { status: "Calibrating Timetable Grid...", detail: `${timetableSlots.length} Campus course slots configured` };
       default: return { status: "Processing...", detail: "" };
     }
   };
@@ -277,7 +287,7 @@ function OnboardingPage({ onComplete, onNavigate }) {
 
           {/* Step dots */}
           <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-            {[1, 2, 3, 4, 5].map((s) => (
+            {[1, 2, 3, 4, 5, 6].map((s) => (
               <div 
                 key={s} 
                 style={{
@@ -305,13 +315,14 @@ function OnboardingPage({ onComplete, onNavigate }) {
           
           {/* Header info */}
           <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'space-between', alignItems: 'center', marginBottom: '36px' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Step {step} of 5</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Step {step} of 6</span>
             <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent)' }}>
               {step === 1 && "Identity Verification"}
               {step === 2 && "Interest Matching"}
               {step === 3 && "Career Blueprint"}
               {step === 4 && "Clubs & Skill Calibrator"}
               {step === 5 && "Digital Integration"}
+              {step === 6 && "Campus Timetable Matrix"}
             </span>
           </div>
 
@@ -607,6 +618,72 @@ function OnboardingPage({ onComplete, onNavigate }) {
               </div>
             )}
 
+            {/* Step 6: Timetable Schedule Calibration */}
+            {step === 6 && (
+              <div className="animate-slide-up" style={{ textAlign: 'left' }}>
+                <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>Campus Timetable Matrix</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
+                  Confirm or customize your typical college daily schedule so your Digital Twin can locate study gaps, hackathons, and club sessions.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '310px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {timetableSlots.map((slot, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '140px 1fr 1fr', 
+                        gap: '10px', 
+                        alignItems: 'center',
+                        padding: '10px 14px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '10px'
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>{slot.time}</span>
+                      <input 
+                        type="text" 
+                        value={slot.subject}
+                        onChange={(e) => {
+                          const updated = [...timetableSlots];
+                          updated[idx].subject = e.target.value;
+                          setTimetableSlots(updated);
+                        }}
+                        placeholder="Subject / Activity"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          color: '#ffffff',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px'
+                        }}
+                      />
+                      <input 
+                        type="text" 
+                        value={slot.room}
+                        onChange={(e) => {
+                          const updated = [...timetableSlots];
+                          updated[idx].room = e.target.value;
+                          setTimetableSlots(updated);
+                        }}
+                        placeholder="Room / Block"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          color: '#ffffff',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px'
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
 
           {/* Stepper Buttons */}
@@ -642,7 +719,7 @@ function OnboardingPage({ onComplete, onNavigate }) {
                 fontSize: '14px'
               }}
             >
-              {step === 5 ? "Deploy Digital Twin" : "Proceed"} <ArrowRight size={16} />
+              {step === 6 ? "Deploy Digital Twin" : "Proceed"} <ArrowRight size={16} />
             </button>
           </div>
 

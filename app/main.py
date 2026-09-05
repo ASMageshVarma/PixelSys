@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import Base, engine
-from app.api import auth, fusion
+from app.api import auth, fusion, profile, twin
 
 Base.metadata.create_all(bind=engine)
 
@@ -23,6 +23,8 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(fusion.router, prefix=settings.API_V1_PREFIX)
+app.include_router(profile.router, prefix=settings.API_V1_PREFIX)
+app.include_router(twin.router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/health")
 def health():

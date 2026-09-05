@@ -756,8 +756,6 @@ function LandingPage({ onNavigate, userProfile }) {
         </div>
       </section>
 
-      {/* Interactive Dashboard Preview Card */}
-      <DashboardPreview />
 
       {/* Technology Stack Marquee */}
       <section id="tech" style={{

@@ -31,3 +31,21 @@ __pycache__/
 node_modules/
 dist/
 .env
+
+# Database
+*.db
+*.sqlite
+
+# Generated poster images
+obsidian_poster.jpg
+blueprint_poster.jpg
+original_poster.jpg
+freshers_party_poster*.jpg
+
+# Generated scripts
+generate_pdf_guide.py
+generate_presentation.py
+seed_data.py
+
+# Extra folders
+c/
